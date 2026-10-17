@@ -16,13 +16,15 @@ Campus Exchange lets students list items to sell, donate or swap, and lets other
 - Photo upload, accept/decline requests, delete listings
 
 ## Tech Stack
-HTML, CSS, JavaScript (no frameworks), browser localStorage, Vercel hosting
+HTML, CSS, JavaScript (no frameworks), Supabase (PostgreSQL database), Vercel hosting
 
 ## Why this stack
-- Plain HTML/CSS/JS loads instantly and works on any device without installation
-- localStorage needs no backend, so the app works offline and deploys in seconds
-- Vercel gives a free public URL with automatic deploys from GitHub
+- Plain HTML/CSS/JS loads instantly on any device with no build step
+- Supabase gives a real shared PostgreSQL database with no server to maintain, so every student sees the same listings and requests
+- Vercel provides a free public URL with automatic deploys from GitHub
 
+## Note
+This is a hackathon demo: the database rules are open, and there is no login. Item ownership is tracked per browser.
 ## Setup / Usage
 Open `index.html` in a browser, or visit the live link below.
 Note: data is saved per browser (localStorage).
