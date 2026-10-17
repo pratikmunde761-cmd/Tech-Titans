@@ -3,77 +3,39 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Campus Exchange: a student marketplace to sell, donate and swap pre-owned items.">
     <title>Campus Exchange Marketplace</title>
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
 
-<header>
-    <h1>Campus Exchange ♻️</h1>
-    <p>Reuse More. Waste Less.</p>
+<header class="topbar">
+    <div class="topbar-inner">
+        <a class="brand" href="#top">
+            <span class="brand-logo">♻️</span>
+            <span>Campus Exchange</span>
+        </a>
+        <button type="button" id="openListingDialog" class="btn-primary">+ Add listing</button>
+    </div>
 </header>
 
-<nav>
-    <button type="button" data-view="all" onclick="showAll()">All Items</button>
-    <button type="button" data-view="available" onclick="showAvailable()">Available</button>
-    <button type="button" data-view="mine" onclick="showMyListings()">My Listings</button>
-</nav>
+<section class="hero" id="top">
+    <div class="hero-inner">
+        <div>
+            <h1>Give campus items a second life</h1>
+            <p>Buy, donate or swap books, calculators, lab gear and more with students on your campus.</p>
+        </div>
+        <div class="stats" id="stats"></div>
+    </div>
+</section>
 
-<main>
-    <section class="form-section">
-        <h2>Add New Listing</h2>
-
-        <form id="listingForm">
-            <input id="title" placeholder="Item name" required>
-
-            <textarea id="description"
-                placeholder="Item description" required></textarea>
-
-            <select id="category" required>
-                <option value="">Select Category</option>
-                <option>Books</option>
-                <option>Electronics</option>
-                <option>Lab Supplies</option>
-                <option>Stationery</option>
-                <option>Other</option>
-            </select>
-
-            <select id="condition" required>
-                <option value="">Select Condition</option>
-                <option>Like New</option>
-                <option>Good</option>
-                <option>Acceptable</option>
-            </select>
-
-            <input id="price" type="number"
-                min="0" placeholder="Price in ₹ (0 = free)" required>
-
-            <input id="image" type="url"
-                placeholder="Image URL (optional)">
-            <label>Or upload a photo:
-    <input id="imageFile" type="file" accept="image/*">
-</label>
-<img id="imagePreview" alt="Preview"
-     style="display:none; max-height:120px; border-radius:6px;">
-
-            <select id="exchangeType" required>
-                <option value="">Select Listing Type</option>
-                <option>Sell</option>
-                <option>Donate</option>
-                <option>Exchange</option>
-            </select>
-
-            <button type="submit">Add Listing</button>
-        </form>
-    </section>
-
-    <section class="market-section">
-        <h2>Explore Marketplace</h2>
-
-        <input id="search" placeholder="Search items...">
-
-        <div class="filters">
-            <select id="filterCategory">
+<main class="container">
+    <section class="panel">
+        <div class="toolbar">
+            <div class="search-wrap">
+                <input id="search" type="search" placeholder="Search books, calculators, lab coats..." aria-label="Search items">
+            </div>
+            <select id="filterCategory" aria-label="Filter by category">
                 <option value="">All Categories</option>
                 <option>Books</option>
                 <option>Electronics</option>
@@ -81,40 +43,133 @@
                 <option>Stationery</option>
                 <option>Other</option>
             </select>
-
-            <select id="sort">
+            <select id="sort" aria-label="Sort listings">
                 <option value="newest">Newest First</option>
                 <option value="low">Price: Low to High</option>
                 <option value="high">Price: High to Low</option>
             </select>
         </div>
 
+        <div class="tabs">
+            <button type="button" class="tab" data-view="all">All items</button>
+            <button type="button" class="tab" data-view="available">Available</button>
+            <button type="button" class="tab" data-view="mine">My listings</button>
+        </div>
+
+        <p class="result-count" id="resultCount"></p>
         <div id="listings" class="listings"></div>
     </section>
 
-    <section class="requests-section">
-        <h2>Exchange Requests</h2>
+    <section class="panel">
+        <div class="panel-head">
+            <h2>Requests &amp; inquiries</h2>
+            <span class="pill" id="requestCount">0</span>
+        </div>
         <div id="requests"></div>
     </section>
 </main>
 
 <footer>
-    <p>Campus Exchange & Reuse Marketplace</p>
-    <p>Give Items a Second Life 🌱</p>
+    <p>Campus Exchange &amp; Reuse Marketplace · Reuse more, waste less 🌱</p>
 </footer>
 
-<dialog id="inquiryDialog">
-    <form id="inquiryForm">
-        <h2 id="inquiryTitle">Send Inquiry</h2>
-        <input id="reqName" placeholder="Your name" required>
-        <input id="reqContact" placeholder="Your email or phone number" required>
-        <textarea id="reqMessage" placeholder="Short message to the owner" required></textarea>
+<!-- Add listing dialog -->
+<dialog id="listingDialog">
+    <form id="listingForm" class="dialog-form">
+        <div class="dialog-head">
+            <h2>Add a new listing</h2>
+            <button type="button" class="icon-btn" data-close aria-label="Close">✕</button>
+        </div>
+
+        <div class="grid-2">
+            <label class="full">Item name
+                <input id="title" placeholder="e.g. Engineering Mathematics Textbook" maxlength="80" required>
+            </label>
+
+            <label class="full">Description
+                <textarea id="description" placeholder="Condition details, edition, what's included..." maxlength="300" required></textarea>
+            </label>
+
+            <label>Category
+                <select id="category" required>
+                    <option value="">Select Category</option>
+                    <option>Books</option>
+                    <option>Electronics</option>
+                    <option>Lab Supplies</option>
+                    <option>Stationery</option>
+                    <option>Other</option>
+                </select>
+            </label>
+
+            <label>Condition
+                <select id="condition" required>
+                    <option value="">Select Condition</option>
+                    <option>Like New</option>
+                    <option>Good</option>
+                    <option>Acceptable</option>
+                </select>
+            </label>
+
+            <label>Listing type
+                <select id="exchangeType" required>
+                    <option value="">Select Listing Type</option>
+                    <option>Sell</option>
+                    <option>Donate</option>
+                    <option>Exchange</option>
+                </select>
+            </label>
+
+            <label>Price in ₹ (0 = free)
+                <input id="price" type="number" min="0" step="1" inputmode="numeric" placeholder="0" required>
+            </label>
+
+            <label class="full">Your name (shown to buyers)
+                <input id="seller" placeholder="e.g. Pratik M." maxlength="40">
+            </label>
+
+            <label class="full">Upload a photo
+                <input id="imageFile" type="file" accept="image/*">
+                <img id="imagePreview" class="preview" alt="Photo preview" hidden>
+            </label>
+
+            <label class="full">Or paste an image URL (optional)
+                <input id="image" type="url" placeholder="https://...">
+            </label>
+        </div>
+
         <div class="dialog-actions">
-            <button type="submit">Send</button>
-            <button type="button" id="inquiryCancel" class="secondary">Cancel</button>
+            <button type="button" class="btn-ghost" data-close>Cancel</button>
+            <button type="submit" class="btn-primary">Add listing</button>
         </div>
     </form>
 </dialog>
-    <script src="script.js"></script>
+
+<!-- Inquiry dialog -->
+<dialog id="inquiryDialog">
+    <form id="inquiryForm" class="dialog-form">
+        <div class="dialog-head">
+            <h2 id="inquiryTitle">Send Inquiry</h2>
+            <button type="button" class="icon-btn" data-close aria-label="Close">✕</button>
+        </div>
+        <p class="dialog-sub" id="inquirySubtitle"></p>
+
+        <label>Your name
+            <input id="reqName" placeholder="Your name" maxlength="60" required>
+        </label>
+        <label>Email or phone number
+            <input id="reqContact" placeholder="So the owner can reach you" maxlength="80" required>
+        </label>
+        <label>Message
+            <textarea id="reqMessage" placeholder="Hi! Is this still available?" maxlength="300" required></textarea>
+        </label>
+
+        <div class="dialog-actions">
+            <button type="button" class="btn-ghost" data-close>Cancel</button>
+            <button type="submit" class="btn-primary">Send</button>
+        </div>
+    </form>
+</dialog>
+
+<script src="script.js"></script>
 </body>
 </html>
