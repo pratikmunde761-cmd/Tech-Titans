@@ -449,3 +449,34 @@ footer {
 .topbar-actions { display: flex; align-items: center; gap: 10px; }
 .pill-live { background: var(--primary-soft); color: var(--primary-dark); }
 .pill-error { background: #fde8e1; color: var(--danger); }
+body {
+    background:
+        radial-gradient(900px 480px at 90% -8%, #d3efe0 0%, transparent 60%),
+        radial-gradient(800px 420px at -10% 35%, #e6f4ec 0%, transparent 60%),
+        var(--bg);
+    background-attachment: fixed;
+}
+
+.hero {
+    position: relative;
+    overflow: hidden;
+    background: linear-gradient(120deg, #064e3b 0%, #0f7a55 55%, #22b07d 100%);
+}
+.hero::before, .hero::after {
+    content: "";
+    position: absolute;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, .08);
+    pointer-events: none;
+}
+.hero::before { width: 320px; height: 320px; right: -60px; top: -140px; }
+.hero::after { width: 220px; height: 220px; left: 30%; bottom: -130px; }
+.hero-inner { position: relative; z-index: 1; }
+
+.btn-primary { background: linear-gradient(135deg, #12926a, #0a6a49); }
+.btn-primary:hover { background: linear-gradient(135deg, #0f7a55, #085a3e); }
+.card:hover { border-color: #b9dccb; }
+
+.seller-text { display: flex; flex-direction: column; min-width: 0; line-height: 1.25; }
+.seller-text small { font-size: .7rem; opacity: .85; }
+.card-actions { flex-wrap: wrap; }
