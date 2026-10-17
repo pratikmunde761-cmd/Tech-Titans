@@ -2,7 +2,7 @@
 
 > A campus marketplace where students list, discover and exchange pre-owned books, calculators, lab supplies and more.
 
-🔗 **Live link:** https://YOUR-STABLE-DOMAIN.vercel.app
+🔗 **Live link:https://techtitans-9tsd17kay-tech-titans-e685.vercel.app/
 🎥 **Demo video (3–5 min):** https://youtu.be/YOUR-VIDEO-ID
 
 ## Problem
