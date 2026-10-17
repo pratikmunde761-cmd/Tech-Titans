@@ -163,3 +163,14 @@ footer {
         grid-column: auto;
     }
 }
+.danger {
+    background: #b3402a;
+}
+
+.danger:hover {
+    background: #8f3220;
+}
+
+.request-card button {
+    margin: 4px 6px 0 0;
+}
