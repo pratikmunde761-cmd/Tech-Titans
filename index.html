@@ -14,9 +14,9 @@
 </header>
 
 <nav>
-    <button onclick="showAll()">All Items</button>
-    <button onclick="showAvailable()">Available</button>
-    <button onclick="showMyListings()">My Listings</button>
+    <button type="button" data-view="all" onclick="showAll()">All Items</button>
+    <button type="button" data-view="available" onclick="showAvailable()">Available</button>
+    <button type="button" data-view="mine" onclick="showMyListings()">My Listings</button>
 </nav>
 
 <main>
@@ -103,6 +103,18 @@
     <p>Give Items a Second Life 🌱</p>
 </footer>
 
-<script src="script.js"></script>
+<dialog id="inquiryDialog">
+    <form id="inquiryForm">
+        <h2 id="inquiryTitle">Send Inquiry</h2>
+        <input id="reqName" placeholder="Your name" required>
+        <input id="reqContact" placeholder="Your email or phone number" required>
+        <textarea id="reqMessage" placeholder="Short message to the owner" required></textarea>
+        <div class="dialog-actions">
+            <button type="submit">Send</button>
+            <button type="button" id="inquiryCancel" class="secondary">Cancel</button>
+        </div>
+    </form>
+</dialog>
+    <script src="script.js"></script>
 </body>
 </html>
