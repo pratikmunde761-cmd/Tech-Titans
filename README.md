@@ -2,8 +2,8 @@
 
 > A campus marketplace where students list, discover and exchange pre-owned books, calculators, lab supplies and more.
 
-🔗 **Live link:https://techtitans-88zn5ndyt-tech-titans-e685.vercel.app/
-🎥 **Demo video (3–5 min):** https://youtu.be/YOUR-VIDEO-ID
+🔗 **Live link:**https://techtitans-88zn5ndyt-tech-titans-e685.vercel.app/
+🎥 **Demo video (3–5 min):** https://youtu.be/3frzVHEfHZI
 
 ## Problem
 Every semester, students buy new books, calculators and lab supplies while seniors' identical items sit unused. This wastes money and resources, and there is no simple campus-focused place to pass items on.
@@ -40,7 +40,9 @@ HTML, CSS, JavaScript (no framework), Supabase (PostgreSQL database), Vercel (ho
 
 ## Team
 1.Pratik Munde
+
 2.Ankush Chaudhari
+
 3.Nikhil Sonawane
 
 ## Notes
