@@ -1,37 +1,37 @@
-# Tech Titans — Campus Exchange
+# Tech Titans — Campus Exchange ♻️
 
-A campus marketplace for students to reuse books, calculators, lab supplies, and other items.
+A campus marketplace where students list, discover, and exchange pre-owned items.
 
-## Team
+## Problem
+Students have books, calculators, lab supplies and stationery they no longer need, while others buy the same things new. This wastes money and resources.
 
-Tech Titans
+## Solution
+Campus Exchange lets students list items to sell, donate or swap, and lets others find them and send inquiries or exchange requests.
 
 ## Features
+- Create listings with photo, description, category, condition and price
+- Search, filter by category, sort by newest or price
+- Send inquiries / exchange requests to item owners
+- Track items as Available, Reserved or Completed
 
-- Create listings with descriptions, categories, condition, prices, and image links
-- Search and filter listings
-- Sort listings by price or newest
-- Send inquiries or exchange requests
-- Track items as Available, Reserved, or Completed
+## Tech Stack
+HTML, CSS, JavaScript (no frameworks), browser localStorage, Vercel hosting
 
-## Built with
+## Why this stack
+- Plain HTML/CSS/JS loads instantly and works on any device without installation
+- localStorage needs no backend, so the app works offline and deploys in seconds
+- Vercel gives a free public URL with automatic deploys from GitHub
 
-- HTML
-- CSS
-- JavaScript
+## Setup / Usage
+Open `index.html` in a browser, or visit the live link below.
+Note: data is saved per browser (localStorage).
 
-## Live website
+## Team
+- [Name 1]
+- [Name 2]
 
-[Open Campus Exchange](------------)
+## Live Link
+https://YOUR-PRODUCTION-URL.vercel.app
 
-## Demo video
-
-[Watch the 3–5 minute demo](-------)
-
-## Run locally
-
-Open `index.html` in a web browser.
-
-## Data storage
-
-This version saves listings and requests in the browser’s local storage. The data is available in that browser only.
+## Demo Video
+https://youtu.be/YOUR-VIDEO-ID
