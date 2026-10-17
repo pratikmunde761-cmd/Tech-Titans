@@ -2,25 +2,35 @@
 
 const LISTINGS_KEY = "campusExchangeListings";
 const REQUESTS_KEY = "campusExchangeRequests";
-const SEEDED_KEY = "campusExchangeSeeded";
+const SEED_KEY = "campusExchangeSeededV2";
+const STATUSES = ["Available", "Reserved", "Completed"];
 
-const form = document.getElementById("listingForm");
-const listingsElement = document.getElementById("listings");
-const requestsElement = document.getElementById("requests");
-const searchElement = document.getElementById("search");
-const categoryElement = document.getElementById("filterCategory");
-const sortElement = document.getElementById("sort");
-const imageFileElement = document.getElementById("imageFile");
-const imagePreviewElement = document.getElementById("imagePreview");
-const inquiryDialog = document.getElementById("inquiryDialog");
-const inquiryForm = document.getElementById("inquiryForm");
-const inquiryTitle = document.getElementById("inquiryTitle");
+const $ = id => document.getElementById(id);
+
+const listingsElement = $("listings");
+const requestsElement = $("requests");
+const searchElement = $("search");
+const categoryElement = $("filterCategory");
+const sortElement = $("sort");
+const statsElement = $("stats");
+const resultCountElement = $("resultCount");
+const requestCountElement = $("requestCount");
+const listingDialog = $("listingDialog");
+const listingForm = $("listingForm");
+const imageFileElement = $("imageFile");
+const imagePreviewElement = $("imagePreview");
+const inquiryDialog = $("inquiryDialog");
+const inquiryForm = $("inquiryForm");
+const inquiryTitle = $("inquiryTitle");
+const inquirySubtitle = $("inquirySubtitle");
 
 let currentView = "all";
 let uploadedImage = "";
 let activeListingId = null;
 let listings = loadData(LISTINGS_KEY);
 let requests = loadData(REQUESTS_KEY);
+
+/* ---------- Storage ---------- */
 
 function loadData(key) {
     try {
@@ -42,6 +52,8 @@ function saveData(key, data) {
     }
 }
 
+/* ---------- Helpers ---------- */
+
 function escapeHTML(value) {
     return String(value).replace(/[&<>"']/g, character => ({
         "&": "&amp;",
@@ -56,10 +68,11 @@ function makeId() {
     return `${Date.now()}-${Math.random().toString(16).slice(2)}`;
 }
 
-function formatPrice(price) {
-    return Number(price) === 0
-        ? "Free"
-        : `₹${Number(price).toLocaleString("en-IN")}`;
+function priceLabel(item) {
+    const price = Number(item.price);
+    if (item.type === "Exchange" && price === 0) return "Swap";
+    if (price === 0) return "Free";
+    return `₹${price.toLocaleString("en-IN")}`;
 }
 
 function validImageUrl(value) {
@@ -74,70 +87,132 @@ function validImageUrl(value) {
     }
 }
 
+function timeAgo(timestamp) {
+    const minutes = Math.floor((Date.now() - timestamp) / 60000);
+    if (minutes < 1) return "Just now";
+    if (minutes < 60) return `${minutes} min ago`;
+    const hours = Math.floor(minutes / 60);
+    if (hours < 24) return `${hours} h ago`;
+    const days = Math.floor(hours / 24);
+    return `${days} day${days === 1 ? "" : "s"} ago`;
+}
+
+function initial(name) {
+    return (name || "?").trim().charAt(0).toUpperCase() || "?";
+}
+
 function showToast(message) {
     const toast = document.createElement("div");
     toast.className = "toast";
+    toast.setAttribute("role", "status");
     toast.textContent = message;
     document.body.appendChild(toast);
-    setTimeout(() => toast.remove(), 2500);
+    setTimeout(() => toast.remove(), 2600);
 }
+
+/* ---------- Generated artwork for items without a photo ---------- */
+
+const CATEGORY_STYLE = {
+    "Books": { emoji: "📚", c1: "#34d399", c2: "#0f766e" },
+    "Electronics": { emoji: "🔌", c1: "#60a5fa", c2: "#4338ca" },
+    "Lab Supplies": { emoji: "🧪", c1: "#fbbf24", c2: "#ea580c" },
+    "Stationery": { emoji: "✏️", c1: "#f472b6", c2: "#be185d" },
+    "Other": { emoji: "🎒", c1: "#a78bfa", c2: "#6d28d9" }
+};
+
+function artFor(category) {
+    const style = CATEGORY_STYLE[category] || CATEGORY_STYLE.Other;
+    const svg = `<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 400 300'>` +
+        `<defs><linearGradient id='g' x1='0' y1='0' x2='1' y2='1'>` +
+        `<stop offset='0' stop-color='${style.c1}'/><stop offset='1' stop-color='${style.c2}'/>` +
+        `</linearGradient></defs>` +
+        `<rect width='400' height='300' fill='url(#g)'/>` +
+        `<circle cx='330' cy='60' r='90' fill='#fff' fill-opacity='.14'/>` +
+        `<circle cx='60' cy='260' r='110' fill='#fff' fill-opacity='.10'/>` +
+        `<text x='200' y='185' font-size='110' text-anchor='middle'>${style.emoji}</text>` +
+        `</svg>`;
+    return "data:image/svg+xml;charset=utf-8," + encodeURIComponent(svg);
+}
+
+/* ---------- Sample data ---------- */
 
 function seedSampleData() {
     try {
-        if (localStorage.getItem(SEEDED_KEY)) return;
+        if (localStorage.getItem(SEED_KEY)) return;
     } catch {
         return;
     }
 
+    const hour = 3600000;
     const now = Date.now();
+
     const samples = [
-        { title: "Engineering Mathematics Textbook", description: "Clean copy, no highlighting. Covers the Sem I syllabus.", category: "Books", condition: "Good", price: 150, type: "Sell" },
-        { title: "Casio fx-991ES Plus Calculator", description: "Works perfectly, comes with cover.", category: "Electronics", condition: "Like New", price: 400, type: "Sell" },
-        { title: "Lab Coat (Size M)", description: "Used for one semester, washed.", category: "Lab Supplies", condition: "Good", price: 0, type: "Donate" },
-        { title: "Drafter + Geometry Box", description: "Complete set. Want to swap for a scientific calculator.", category: "Stationery", condition: "Acceptable", price: 0, type: "Exchange" }
-    ].map((item, index) => ({
+        { title: "Engineering Mathematics Textbook", description: "Clean copy, no highlighting. Covers the full Sem I syllabus with solved examples.", category: "Books", condition: "Good", price: 150, type: "Sell", seller: "Aarav S. · Mechanical", status: "Available", age: 2 },
+        { title: "Casio fx-991ES Plus Calculator", description: "Works perfectly, includes the original cover. Allowed in all university exams.", category: "Electronics", condition: "Like New", price: 400, type: "Sell", seller: "Riya P. · Computer", status: "Available", age: 5 },
+        { title: "Lab Coat (Size M)", description: "Used for one semester and washed. Free to a junior who needs it.", category: "Lab Supplies", condition: "Good", price: 0, type: "Donate", seller: "Karan M. · Civil", status: "Reserved", age: 9 },
+        { title: "Drafter + Geometry Box", description: "Complete set for engineering graphics. Would like to swap for a scientific calculator.", category: "Stationery", condition: "Acceptable", price: 0, type: "Exchange", seller: "Sneha D. · Electrical", status: "Available", age: 14 },
+        { title: "Let Us C (Kanetkar)", description: "Handy for the C programming practicals. Light pencil notes in a few chapters.", category: "Books", condition: "Good", price: 120, type: "Sell", seller: "Omkar J. · IT", status: "Available", age: 22 },
+        { title: "Arduino Uno Starter Kit", description: "Board, breadboard, jumper wires, LEDs and sensors. Great for first-year projects.", category: "Electronics", condition: "Good", price: 650, type: "Sell", seller: "Neha K. · E&TC", status: "Available", age: 30 },
+        { title: "Engineering Physics Lab Journal", description: "Completed Sem I journal. Free to anyone who wants to refer to it.", category: "Books", condition: "Like New", price: 0, type: "Donate", seller: "Vikram T. · Mechanical", status: "Available", age: 40 },
+        { title: "Safety Goggles (Pair)", description: "Scratch-free lens, adjustable strap. Already picked up by a junior.", category: "Lab Supplies", condition: "Like New", price: 50, type: "Sell", seller: "Pooja L. · Chemical", status: "Completed", age: 52 },
+        { title: "LED Study Table Lamp", description: "Three brightness levels with a USB charging cable. Looking to swap for a mini fan.", category: "Other", condition: "Good", price: 0, type: "Exchange", seller: "Aditya R. · Computer", status: "Available", age: 70 }
+    ].map(({ age, ...item }) => ({
         ...item,
         id: makeId(),
         image: "",
-        status: index === 2 ? "Reserved" : "Available",
-        createdAt: now - index * 3600000,
+        createdAt: now - age * hour,
         isMine: false
     }));
 
-    listings.push(...samples);
+    listings = listings.filter(item => item.isMine).concat(samples);
+    requests = requests.filter(request => listings.some(item => item.id === request.listingId));
     saveData(LISTINGS_KEY, listings);
+    saveData(REQUESTS_KEY, requests);
 
     try {
-        localStorage.setItem(SEEDED_KEY, "1");
+        localStorage.setItem(SEED_KEY, "1");
     } catch {
-        // Ignore: samples simply may show again next time.
+        // Ignore: sample data may simply reload next time.
     }
 }
 
+/* ---------- Rendering ---------- */
+
+function renderStats() {
+    const available = listings.filter(item => item.status === "Available").length;
+    const free = listings.filter(item => Number(item.price) === 0).length;
+
+    statsElement.innerHTML = [
+        [listings.length, "Items listed"],
+        [available, "Available now"],
+        [free, "Free or swap"],
+        [requests.length, "Requests"]
+    ].map(([number, label]) =>
+        `<div class="stat"><strong>${number}</strong><span>${label}</span></div>`
+    ).join("");
+}
+
 function renderListings() {
-    document.querySelectorAll("nav button").forEach(button => {
-        button.classList.toggle("active", button.dataset.view === currentView);
+    document.querySelectorAll(".tab").forEach(tab => {
+        tab.classList.toggle("active", tab.dataset.view === currentView);
     });
 
     const searchText = searchElement.value.trim().toLowerCase();
     const selectedCategory = categoryElement.value;
 
-    let shownListings = listings.filter(item => {
+    const shownListings = listings.filter(item => {
         const matchesSearch = [
             item.title,
             item.description,
             item.category,
-            item.condition
-        ].some(value => String(value).toLowerCase().includes(searchText));
+            item.condition,
+            item.type,
+            item.seller
+        ].some(value => String(value || "").toLowerCase().includes(searchText));
 
-        const matchesCategory =
-            !selectedCategory || item.category === selectedCategory;
-
-        const matchesView =
-            currentView !== "available" || item.status === "Available";
-
-        const matchesOwner =
-            currentView !== "mine" || item.isMine;
+        const matchesCategory = !selectedCategory || item.category === selectedCategory;
+        const matchesView = currentView !== "available" || item.status === "Available";
+        const matchesOwner = currentView !== "mine" || item.isMine;
 
         return matchesSearch && matchesCategory && matchesView && matchesOwner;
     });
@@ -150,105 +225,127 @@ function renderListings() {
         shownListings.sort((a, b) => b.createdAt - a.createdAt);
     }
 
+    resultCountElement.textContent =
+        `${shownListings.length} item${shownListings.length === 1 ? "" : "s"} found`;
+
     if (shownListings.length === 0) {
-        listingsElement.innerHTML =
-            "<p>No listings found. Try another search or add an item.</p>";
+        listingsElement.innerHTML = `
+            <div class="empty">
+                <strong>No listings found</strong>
+                Try another search, or add an item of your own.
+            </div>`;
         return;
     }
 
     listingsElement.innerHTML = shownListings.map(item => {
-        const image = validImageUrl(item.image);
-        const imageHTML = image
-            ? `<img src="${escapeHTML(image)}" alt="${escapeHTML(item.title)}">`
-            : "";
-
-        const badgeHTML = `<span class="badge badge-${escapeHTML(String(item.status).toLowerCase())}">${escapeHTML(item.status)}</span>`;
-
-        const statusHTML = item.isMine
-            ? `
-                <label>
-                    Update status:
-                    <select data-status-id="${escapeHTML(item.id)}">
-                        ${["Available", "Reserved", "Completed"].map(status =>
-                            `<option value="${status}" ${item.status === status ? "selected" : ""}>${status}</option>`
-                        ).join("")}
-                    </select>
-                </label>`
-            : "";
+        const image = validImageUrl(item.image) || artFor(item.category);
+        const status = STATUSES.includes(item.status) ? item.status : "Available";
+        const sellerName = item.isMine ? "You" : (item.seller || "Student");
 
         const actionHTML = item.isMine
-            ? `<p>Your listing</p>
-               <button type="button" class="danger" data-delete-id="${escapeHTML(item.id)}">Delete</button>`
-            : item.status === "Available"
-                ? `<button type="button" data-request-id="${escapeHTML(item.id)}">
-                    ${item.type === "Exchange" ? "Request Exchange" : "Inquire"}
+            ? `
+                <select data-status-id="${escapeHTML(item.id)}" aria-label="Update status">
+                    ${STATUSES.map(option =>
+                        `<option value="${option}" ${status === option ? "selected" : ""}>${option}</option>`
+                    ).join("")}
+                </select>
+                <button type="button" class="btn-danger btn-sm" data-delete-id="${escapeHTML(item.id)}">Delete</button>`
+            : status === "Available"
+                ? `<button type="button" class="btn-primary btn-sm" data-request-id="${escapeHTML(item.id)}">
+                        ${item.type === "Exchange" ? "Request Exchange" : "Inquire"}
                    </button>`
-                : "<p>This item is not currently available.</p>";
+                : `<button type="button" class="btn-ghost btn-sm" disabled>Not available</button>`;
 
         return `
             <article class="card">
-                ${imageHTML}
-                ${badgeHTML}
-                <h3>${escapeHTML(item.title)}</h3>
-                <p>${escapeHTML(item.description)}</p>
-                <p><strong>Category:</strong> ${escapeHTML(item.category)}</p>
-                <p><strong>Condition:</strong> ${escapeHTML(item.condition)}</p>
-                <p><strong>Listing type:</strong> ${escapeHTML(item.type)}</p>
-                <p><strong>Price:</strong> ${formatPrice(item.price)}</p>
-                ${statusHTML}
-                ${actionHTML}
+                <div class="card-media">
+                    <img src="${escapeHTML(image)}" alt="${escapeHTML(item.title)}" data-cat="${escapeHTML(item.category)}" loading="lazy">
+                    <span class="badge badge-${status.toLowerCase()}">${status}</span>
+                    <span class="type-tag">${escapeHTML(item.type)}</span>
+                </div>
+                <div class="card-body">
+                    <div class="price-row">
+                        <span class="price">${escapeHTML(priceLabel(item))}</span>
+                        <span class="time">${timeAgo(item.createdAt)}</span>
+                    </div>
+                    <h3>${escapeHTML(item.title)}</h3>
+                    <p class="desc">${escapeHTML(item.description)}</p>
+                    <div class="chips">
+                        <span class="chip">${escapeHTML(item.category)}</span>
+                        <span class="chip">${escapeHTML(item.condition)}</span>
+                    </div>
+                    <div class="seller">
+                        <span class="avatar">${escapeHTML(initial(sellerName))}</span>
+                        <span>${escapeHTML(sellerName)}</span>
+                    </div>
+                </div>
+                <div class="card-actions">${actionHTML}</div>
             </article>
         `;
     }).join("");
 
     listingsElement.querySelectorAll("img").forEach(image => {
-        image.addEventListener("error", () => image.remove(), { once: true });
+        image.addEventListener("error", () => {
+            image.src = artFor(image.dataset.cat);
+        }, { once: true });
     });
 }
 
 function renderRequests() {
+    requestCountElement.textContent = requests.length;
+
     if (requests.length === 0) {
-        requestsElement.innerHTML = "<p>No inquiries or exchange requests yet.</p>";
+        requestsElement.innerHTML =
+            `<p class="empty">No inquiries yet. Click Inquire on any item to send one.</p>`;
         return;
     }
 
     requestsElement.innerHTML = requests.map(request => `
         <article class="request-card">
-            <strong>${escapeHTML(request.kind)}:</strong>
-            ${escapeHTML(request.title)}
-            <p>From: ${escapeHTML(request.requester)}</p>
-            <p>Contact: ${escapeHTML(request.contact)}</p>
-            <p>Message: ${escapeHTML(request.message)}</p>
-            <p>Status: <strong>${escapeHTML(request.status)}</strong></p>
-            ${request.status === "Pending" ? `
-                <button type="button" data-accept-id="${escapeHTML(request.id)}">Accept</button>
-                <button type="button" class="danger" data-decline-id="${escapeHTML(request.id)}">Decline</button>
-            ` : ""}
-            <p>${escapeHTML(new Date(request.createdAt).toLocaleString())}</p>
+            <span class="avatar">${escapeHTML(initial(request.requester))}</span>
+            <div class="request-main">
+                <div class="request-top">
+                    <span class="request-title">${escapeHTML(request.title)}</span>
+                    <span class="pill pill-${escapeHTML(String(request.status).toLowerCase())}">${escapeHTML(request.status)}</span>
+                </div>
+                <div class="request-meta">
+                    ${escapeHTML(request.kind)} from ${escapeHTML(request.requester)}
+                    · ${escapeHTML(request.contact)}
+                    · ${escapeHTML(timeAgo(request.createdAt))}
+                </div>
+                <p class="request-msg">${escapeHTML(request.message)}</p>
+                ${request.status === "Pending" ? `
+                    <div class="request-actions">
+                        <button type="button" class="btn-primary btn-sm" data-accept-id="${escapeHTML(request.id)}">Accept</button>
+                        <button type="button" class="btn-danger btn-sm" data-decline-id="${escapeHTML(request.id)}">Decline</button>
+                    </div>` : ""}
+            </div>
         </article>
     `).join("");
 }
 
-function clearImagePreview() {
-    uploadedImage = "";
-    imagePreviewElement.style.display = "none";
-    imagePreviewElement.removeAttribute("src");
+function renderAll() {
+    renderStats();
+    renderListings();
+    renderRequests();
 }
 
-function openInquiry(listing) {
-    activeListingId = listing.id;
-    inquiryTitle.textContent =
-        listing.type === "Exchange" ? "Request Exchange" : "Send Inquiry";
-    inquiryForm.reset();
-    inquiryDialog.showModal();
+/* ---------- Photo upload ---------- */
+
+function clearImagePreview() {
+    uploadedImage = "";
+    imagePreviewElement.hidden = true;
+    imagePreviewElement.removeAttribute("src");
 }
 
 imageFileElement.addEventListener("change", () => {
     const file = imageFileElement.files[0];
+
     if (!file) {
         clearImagePreview();
         return;
     }
+
     if (!file.type.startsWith("image/")) {
         alert("Please choose an image file.");
         imageFileElement.value = "";
@@ -268,7 +365,7 @@ imageFileElement.addEventListener("change", () => {
             canvas.getContext("2d").drawImage(img, 0, 0, canvas.width, canvas.height);
             uploadedImage = canvas.toDataURL("image/jpeg", 0.7);
             imagePreviewElement.src = uploadedImage;
-            imagePreviewElement.style.display = "block";
+            imagePreviewElement.hidden = false;
         };
         img.onerror = () => alert("Could not read this image.");
         img.src = reader.result;
@@ -276,10 +373,35 @@ imageFileElement.addEventListener("change", () => {
     reader.readAsDataURL(file);
 });
 
-form.addEventListener("submit", event => {
+/* ---------- Dialogs ---------- */
+
+document.querySelectorAll("[data-close]").forEach(button => {
+    button.addEventListener("click", () => button.closest("dialog").close());
+});
+
+[listingDialog, inquiryDialog].forEach(dialog => {
+    dialog.addEventListener("click", event => {
+        if (event.target === dialog) dialog.close();
+    });
+});
+
+$("openListingDialog").addEventListener("click", () => listingDialog.showModal());
+
+function openInquiry(listing) {
+    activeListingId = listing.id;
+    inquiryTitle.textContent =
+        listing.type === "Exchange" ? "Request Exchange" : "Send Inquiry";
+    inquirySubtitle.textContent = `About: ${listing.title}`;
+    inquiryForm.reset();
+    inquiryDialog.showModal();
+}
+
+/* ---------- Forms ---------- */
+
+listingForm.addEventListener("submit", event => {
     event.preventDefault();
 
-    const price = Number(document.getElementById("price").value);
+    const price = Number($("price").value);
 
     if (!Number.isFinite(price) || price < 0) {
         alert("Enter a valid price of 0 or more.");
@@ -288,23 +410,26 @@ form.addEventListener("submit", event => {
 
     listings.push({
         id: makeId(),
-        title: document.getElementById("title").value.trim(),
-        description: document.getElementById("description").value.trim(),
-        category: document.getElementById("category").value,
-        condition: document.getElementById("condition").value,
+        title: $("title").value.trim(),
+        description: $("description").value.trim(),
+        category: $("category").value,
+        condition: $("condition").value,
         price,
-        image: uploadedImage || validImageUrl(document.getElementById("image").value.trim()),
-        type: document.getElementById("exchangeType").value,
+        seller: $("seller").value.trim() || "You",
+        image: uploadedImage || validImageUrl($("image").value.trim()),
+        type: $("exchangeType").value,
         status: "Available",
         createdAt: Date.now(),
         isMine: true
     });
 
     saveData(LISTINGS_KEY, listings);
-    form.reset();
+    listingForm.reset();
     clearImagePreview();
+    listingDialog.close();
     currentView = "all";
-    renderListings();
+    sortElement.value = "newest";
+    renderAll();
     showToast("Listing added!");
 });
 
@@ -322,26 +447,33 @@ inquiryForm.addEventListener("submit", event => {
         listingId: listing.id,
         title: listing.title,
         kind: listing.type === "Exchange" ? "Exchange request" : "Inquiry",
-        requester: document.getElementById("reqName").value.trim(),
-        contact: document.getElementById("reqContact").value.trim(),
-        message: document.getElementById("reqMessage").value.trim(),
+        requester: $("reqName").value.trim(),
+        contact: $("reqContact").value.trim(),
+        message: $("reqMessage").value.trim(),
         status: "Pending",
         createdAt: Date.now()
     });
 
     saveData(REQUESTS_KEY, requests);
-    renderRequests();
     inquiryDialog.close();
+    renderAll();
     showToast("Request sent to the owner!");
 });
 
-document.getElementById("inquiryCancel").addEventListener("click", () => {
-    inquiryDialog.close();
-});
+/* ---------- Filters ---------- */
 
 searchElement.addEventListener("input", renderListings);
 categoryElement.addEventListener("change", renderListings);
 sortElement.addEventListener("change", renderListings);
+
+document.querySelectorAll(".tab").forEach(tab => {
+    tab.addEventListener("click", () => {
+        currentView = tab.dataset.view;
+        renderListings();
+    });
+});
+
+/* ---------- Listing actions ---------- */
 
 listingsElement.addEventListener("change", event => {
     const listingId = event.target.dataset.statusId;
@@ -352,7 +484,8 @@ listingsElement.addEventListener("change", event => {
 
     listing.status = event.target.value;
     saveData(LISTINGS_KEY, listings);
-    renderListings();
+    renderAll();
+    showToast(`Marked as ${listing.status}`);
 });
 
 listingsElement.addEventListener("click", event => {
@@ -373,10 +506,12 @@ listingsElement.addEventListener("click", event => {
         requests = requests.filter(request => request.listingId !== listing.id);
         saveData(LISTINGS_KEY, listings);
         saveData(REQUESTS_KEY, requests);
-        renderListings();
-        renderRequests();
+        renderAll();
+        showToast("Listing deleted");
     }
 });
+
+/* ---------- Request actions ---------- */
 
 requestsElement.addEventListener("click", event => {
     const acceptButton = event.target.closest("[data-accept-id]");
@@ -393,31 +528,18 @@ requestsElement.addEventListener("click", event => {
         if (listing && listing.status === "Available") {
             listing.status = "Reserved";
             saveData(LISTINGS_KEY, listings);
-            renderListings();
         }
+        showToast("Request accepted. Item reserved.");
     } else {
         request.status = "Declined";
+        showToast("Request declined");
     }
 
     saveData(REQUESTS_KEY, requests);
-    renderRequests();
+    renderAll();
 });
 
-window.showAll = function () {
-    currentView = "all";
-    renderListings();
-};
-
-window.showAvailable = function () {
-    currentView = "available";
-    renderListings();
-};
-
-window.showMyListings = function () {
-    currentView = "mine";
-    renderListings();
-};
+/* ---------- Start ---------- */
 
 seedSampleData();
-renderListings();
-renderRequests();
+renderAll();
