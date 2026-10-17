@@ -56,6 +56,7 @@ function formatPrice(price) {
 
 function validImageUrl(value) {
     if (!value) return "";
+        if (value.startsWith("data:image/")) return value;
 
     try {
         const url = new URL(value);
@@ -168,6 +169,48 @@ function renderRequests() {
     `).join("");
 }
 
+let uploadedImage = "";
+const imageFileElement = document.getElementById("imageFile");
+const imagePreviewElement = document.getElementById("imagePreview");
+
+function clearImagePreview() {
+    uploadedImage = "";
+    imagePreviewElement.style.display = "none";
+    imagePreviewElement.removeAttribute("src");
+}
+
+imageFileElement.addEventListener("change", () => {
+    const file = imageFileElement.files[0];
+    if (!file) {
+        clearImagePreview();
+        return;
+    }
+    if (!file.type.startsWith("image/")) {
+        alert("Please choose an image file.");
+        imageFileElement.value = "";
+        clearImagePreview();
+        return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = () => {
+        const img = new Image();
+        img.onload = () => {
+            const maxSize = 600;
+            const scale = Math.min(1, maxSize / Math.max(img.width, img.height));
+            const canvas = document.createElement("canvas");
+            canvas.width = Math.round(img.width * scale);
+            canvas.height = Math.round(img.height * scale);
+            canvas.getContext("2d").drawImage(img, 0, 0, canvas.width, canvas.height);
+            uploadedImage = canvas.toDataURL("image/jpeg", 0.7);
+            imagePreviewElement.src = uploadedImage;
+            imagePreviewElement.style.display = "block";
+        };
+        img.onerror = () => alert("Could not read this image.");
+        img.src = reader.result;
+    };
+    reader.readAsDataURL(file);
+});
 form.addEventListener("submit", event => {
     event.preventDefault();
 
@@ -185,7 +228,7 @@ form.addEventListener("submit", event => {
         category: document.getElementById("category").value,
         condition: document.getElementById("condition").value,
         price,
-        image: validImageUrl(document.getElementById("image").value.trim()),
+        image: uploadedImage || validImageUrl(document.getElementById("image").value.trim()),
         type: document.getElementById("exchangeType").value,
         status: "Available",
         createdAt: Date.now(),
@@ -193,7 +236,7 @@ form.addEventListener("submit", event => {
     });
 
     saveData(LISTINGS_KEY, listings);
-    form.reset();
+    form.reset();    clearImagePreview();
     currentView = "all";
     renderListings();
 });
