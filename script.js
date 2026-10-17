@@ -261,6 +261,31 @@ window.showMyListings = function () {
     currentView = "mine";
     renderListings();
 };
+function seedSampleData() {
+    try {
+        if (localStorage.getItem("campusExchangeSeeded")) return;
+    } catch { return; }
 
+    const now = Date.now();
+    const samples = [
+        { title: "Engineering Mathematics Textbook", description: "Clean copy, no highlighting. Covers the Sem I syllabus.", category: "Books", condition: "Good", price: 150, type: "Sell" },
+        { title: "Casio fx-991ES Plus Calculator", description: "Works perfectly, comes with cover.", category: "Electronics", condition: "Like New", price: 400, type: "Sell" },
+        { title: "Lab Coat (Size M)", description: "Used for one semester, washed.", category: "Lab Supplies", condition: "Good", price: 0, type: "Donate" },
+        { title: "Drafter + Geometry Box", description: "Complete set. Want to swap for a scientific calculator.", category: "Stationery", condition: "Acceptable", price: 0, type: "Exchange" }
+    ].map((item, i) => ({
+        ...item,
+        id: makeId(),
+        image: "",
+        status: i === 2 ? "Reserved" : "Available",
+        createdAt: now - i * 3600000,
+        isMine: false
+    }));
+
+    listings.push(...samples);
+    saveData(LISTINGS_KEY, listings);
+    try { localStorage.setItem("campusExchangeSeeded", "1"); } catch {}
+}
+
+seedSampleData();
 renderListings();
 renderRequests();
