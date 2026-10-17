@@ -13,6 +13,7 @@ Campus Exchange lets students list items to sell, donate or swap, and lets other
 - Search, filter by category, sort by newest or price
 - Send inquiries / exchange requests to item owners
 - Track items as Available, Reserved or Completed
+- Photo upload, accept/decline requests, delete listings
 
 ## Tech Stack
 HTML, CSS, JavaScript (no frameworks), browser localStorage, Vercel hosting
@@ -32,7 +33,7 @@ Note: data is saved per browser (localStorage).
 3- Ankush Chaudhari
 4- Bhavishya Bodkhe
 ## Live Link
-https://YOUR-PRODUCTION-URL.vercel.app
+https://techtitans-alpha.vercel.app/
 
 ## Demo Video
 https://youtu.be/YOUR-VIDEO-ID
