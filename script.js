@@ -1,9 +1,14 @@
 "use strict";
 
-const LISTINGS_KEY = "campusExchangeListings";
-const REQUESTS_KEY = "campusExchangeRequests";
-const SEED_KEY = "campusExchangeSeededV2";
+/* ===== PASTE YOUR SUPABASE DETAILS BETWEEN THE QUOTES ===== */
+const SUPABASE_URL = "https://jjfkurwjsalirejtjzhz.supabase.co/rest/v1/";
+const SUPABASE_KEY = "sb_publishable_fu_5GsNFKg64bisaYSE_HQ_i7tlpIy6";
+/* ========================================================== */
+
+const OWNER_KEY = "campusExchangeOwnerId";
+const CACHE_KEY = "campusExchangeCache";
 const STATUSES = ["Available", "Reserved", "Completed"];
+const REFRESH_MS = 15000;
 
 const $ = id => document.getElementById(id);
 
@@ -15,6 +20,8 @@ const sortElement = $("sort");
 const statsElement = $("stats");
 const resultCountElement = $("resultCount");
 const requestCountElement = $("requestCount");
+const syncElement = $("syncStatus");
+const requestTabElements = document.querySelectorAll("[data-rtab]");
 const listingDialog = $("listingDialog");
 const listingForm = $("listingForm");
 const imageFileElement = $("imageFile");
@@ -24,32 +31,19 @@ const inquiryForm = $("inquiryForm");
 const inquiryTitle = $("inquiryTitle");
 const inquirySubtitle = $("inquirySubtitle");
 
+let db = null;
 let currentView = "all";
+let requestTab = "received";
 let uploadedImage = "";
 let activeListingId = null;
-let listings = loadData(LISTINGS_KEY);
-let requests = loadData(REQUESTS_KEY);
+let loadFailed = false;
+let listings = [];
+let requests = [];
 
-/* ---------- Storage ---------- */
-
-function loadData(key) {
-    try {
-        const saved = localStorage.getItem(key);
-        const data = saved ? JSON.parse(saved) : [];
-        return Array.isArray(data) ? data : [];
-    } catch (error) {
-        console.error(`Could not read ${key}.`, error);
-        return [];
-    }
-}
-
-function saveData(key, data) {
-    try {
-        localStorage.setItem(key, JSON.stringify(data));
-    } catch (error) {
-        alert("Your browser could not save this data. Try a smaller photo.");
-        console.error(`Could not save ${key}.`, error);
-    }
+try {
+    db = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+} catch (error) {
+    console.error("Supabase is not configured correctly.", error);
 }
 
 /* ---------- Helpers ---------- */
@@ -67,6 +61,21 @@ function escapeHTML(value) {
 function makeId() {
     return `${Date.now()}-${Math.random().toString(16).slice(2)}`;
 }
+
+function getOwnerId() {
+    try {
+        let id = localStorage.getItem(OWNER_KEY);
+        if (!id) {
+            id = window.crypto && crypto.randomUUID ? crypto.randomUUID() : makeId();
+            localStorage.setItem(OWNER_KEY, id);
+        }
+        return id;
+    } catch {
+        return makeId();
+    }
+}
+
+const OWNER_ID = getOwnerId();
 
 function priceLabel(item) {
     const price = Number(item.price);
@@ -107,7 +116,13 @@ function showToast(message) {
     toast.setAttribute("role", "status");
     toast.textContent = message;
     document.body.appendChild(toast);
-    setTimeout(() => toast.remove(), 2600);
+    setTimeout(() => toast.remove(), 2800);
+}
+
+function setSync(state, text) {
+    syncElement.textContent = text;
+    syncElement.className =
+        "pill" + (state === "live" ? " pill-live" : state === "error" ? " pill-error" : "");
 }
 
 /* ---------- Generated artwork for items without a photo ---------- */
@@ -134,45 +149,93 @@ function artFor(category) {
     return "data:image/svg+xml;charset=utf-8," + encodeURIComponent(svg);
 }
 
-/* ---------- Sample data ---------- */
+/* ---------- Database: reading ---------- */
 
-function seedSampleData() {
+function fromListingRow(row) {
+    return {
+        id: row.id,
+        title: row.title,
+        description: row.description,
+        category: row.category,
+        condition: row.condition,
+        price: Number(row.price),
+        type: row.type,
+        status: row.status,
+        image: row.image || "",
+        seller: row.seller || "Student",
+        ownerId: row.owner_id,
+        createdAt: new Date(row.created_at).getTime(),
+        isMine: row.owner_id === OWNER_ID
+    };
+}
+
+function fromRequestRow(row) {
+    return {
+        id: row.id,
+        listingId: row.listing_id,
+        title: row.listing_title,
+        kind: row.kind,
+        requester: row.requester,
+        contact: row.contact,
+        message: row.message,
+        status: row.status,
+        requesterId: row.requester_id,
+        ownerId: row.owner_id,
+        createdAt: new Date(row.created_at).getTime()
+    };
+}
+
+function readCache() {
     try {
-        if (localStorage.getItem(SEED_KEY)) return;
+        const saved = JSON.parse(localStorage.getItem(CACHE_KEY));
+        if (saved && Array.isArray(saved.listings) && Array.isArray(saved.requests)) {
+            listings = saved.listings.map(item => ({ ...item, isMine: item.ownerId === OWNER_ID }));
+            requests = saved.requests;
+        }
     } catch {
-        return;
+        // No usable cache.
+    }
+}
+
+function writeCache() {
+    try {
+        localStorage.setItem(CACHE_KEY, JSON.stringify({ listings, requests }));
+    } catch {
+        // Cache is optional.
+    }
+}
+
+async function loadAll(showErrors) {
+    if (!db) {
+        loadFailed = true;
+        setSync("error", "Not connected");
+        renderAll();
+        return false;
     }
 
-    const hour = 3600000;
-    const now = Date.now();
-
-    const samples = [
-        { title: "Engineering Mathematics Textbook", description: "Clean copy, no highlighting. Covers the full Sem I syllabus with solved examples.", category: "Books", condition: "Good", price: 150, type: "Sell", seller: "Aarav S. · Mechanical", status: "Available", age: 2 },
-        { title: "Casio fx-991ES Plus Calculator", description: "Works perfectly, includes the original cover. Allowed in all university exams.", category: "Electronics", condition: "Like New", price: 400, type: "Sell", seller: "Riya P. · Computer", status: "Available", age: 5 },
-        { title: "Lab Coat (Size M)", description: "Used for one semester and washed. Free to a junior who needs it.", category: "Lab Supplies", condition: "Good", price: 0, type: "Donate", seller: "Karan M. · Civil", status: "Reserved", age: 9 },
-        { title: "Drafter + Geometry Box", description: "Complete set for engineering graphics. Would like to swap for a scientific calculator.", category: "Stationery", condition: "Acceptable", price: 0, type: "Exchange", seller: "Sneha D. · Electrical", status: "Available", age: 14 },
-        { title: "Let Us C (Kanetkar)", description: "Handy for the C programming practicals. Light pencil notes in a few chapters.", category: "Books", condition: "Good", price: 120, type: "Sell", seller: "Omkar J. · IT", status: "Available", age: 22 },
-        { title: "Arduino Uno Starter Kit", description: "Board, breadboard, jumper wires, LEDs and sensors. Great for first-year projects.", category: "Electronics", condition: "Good", price: 650, type: "Sell", seller: "Neha K. · E&TC", status: "Available", age: 30 },
-        { title: "Engineering Physics Lab Journal", description: "Completed Sem I journal. Free to anyone who wants to refer to it.", category: "Books", condition: "Like New", price: 0, type: "Donate", seller: "Vikram T. · Mechanical", status: "Available", age: 40 },
-        { title: "Safety Goggles (Pair)", description: "Scratch-free lens, adjustable strap. Already picked up by a junior.", category: "Lab Supplies", condition: "Like New", price: 50, type: "Sell", seller: "Pooja L. · Chemical", status: "Completed", age: 52 },
-        { title: "LED Study Table Lamp", description: "Three brightness levels with a USB charging cable. Looking to swap for a mini fan.", category: "Other", condition: "Good", price: 0, type: "Exchange", seller: "Aditya R. · Computer", status: "Available", age: 70 }
-    ].map(({ age, ...item }) => ({
-        ...item,
-        id: makeId(),
-        image: "",
-        createdAt: now - age * hour,
-        isMine: false
-    }));
-
-    listings = listings.filter(item => item.isMine).concat(samples);
-    requests = requests.filter(request => listings.some(item => item.id === request.listingId));
-    saveData(LISTINGS_KEY, listings);
-    saveData(REQUESTS_KEY, requests);
-
     try {
-        localStorage.setItem(SEED_KEY, "1");
-    } catch {
-        // Ignore: sample data may simply reload next time.
+        const [listingResult, requestResult] = await Promise.all([
+            db.from("listings").select("*").order("created_at", { ascending: false }),
+            db.from("requests").select("*").order("created_at", { ascending: false })
+        ]);
+
+        if (listingResult.error) throw listingResult.error;
+        if (requestResult.error) throw requestResult.error;
+
+        listings = listingResult.data.map(fromListingRow);
+        requests = requestResult.data.map(fromRequestRow);
+        loadFailed = false;
+        writeCache();
+        setSync("live", "● Live");
+        renderAll();
+        return true;
+    } catch (error) {
+        console.error("Could not load data.", error);
+        loadFailed = true;
+        setSync("error", "Offline");
+        if (showErrors) showToast("Could not reach the database. Showing saved data.");
+        renderAll();
+        return false;
     }
 }
 
@@ -193,7 +256,7 @@ function renderStats() {
 }
 
 function renderListings() {
-    document.querySelectorAll(".tab").forEach(tab => {
+    document.querySelectorAll(".tab[data-view]").forEach(tab => {
         tab.classList.toggle("active", tab.dataset.view === currentView);
     });
 
@@ -229,11 +292,10 @@ function renderListings() {
         `${shownListings.length} item${shownListings.length === 1 ? "" : "s"} found`;
 
     if (shownListings.length === 0) {
-        listingsElement.innerHTML = `
-            <div class="empty">
-                <strong>No listings found</strong>
-                Try another search, or add an item of your own.
-            </div>`;
+        const message = loadFailed && listings.length === 0
+            ? "<strong>Could not load listings</strong>Check your internet connection and refresh the page."
+            : "<strong>No listings found</strong>Try another search, or add an item of your own.";
+        listingsElement.innerHTML = `<div class="empty">${message}</div>`;
         return;
     }
 
@@ -292,36 +354,60 @@ function renderListings() {
 }
 
 function renderRequests() {
-    requestCountElement.textContent = requests.length;
+    const received = requests.filter(request => request.ownerId === OWNER_ID);
+    const sent = requests.filter(request => request.requesterId === OWNER_ID);
+    const pending = received.filter(request => request.status === "Pending").length;
 
-    if (requests.length === 0) {
-        requestsElement.innerHTML =
-            `<p class="empty">No inquiries yet. Click Inquire on any item to send one.</p>`;
+    requestCountElement.textContent = `${pending} pending`;
+
+    requestTabElements.forEach(tab => {
+        const isReceived = tab.dataset.rtab === "received";
+        tab.textContent = `${isReceived ? "Received" : "Sent"} (${isReceived ? received.length : sent.length})`;
+        tab.classList.toggle("active", tab.dataset.rtab === requestTab);
+    });
+
+    const shown = requestTab === "received" ? received : sent;
+
+    if (shown.length === 0) {
+        requestsElement.innerHTML = requestTab === "received"
+            ? `<p class="empty">No requests yet. When someone sends an inquiry about an item you listed, it appears here.</p>`
+            : `<p class="empty">You haven't sent any inquiries yet. Click Inquire on any item to send one.</p>`;
         return;
     }
 
-    requestsElement.innerHTML = requests.map(request => `
-        <article class="request-card">
-            <span class="avatar">${escapeHTML(initial(request.requester))}</span>
-            <div class="request-main">
-                <div class="request-top">
-                    <span class="request-title">${escapeHTML(request.title)}</span>
-                    <span class="pill pill-${escapeHTML(String(request.status).toLowerCase())}">${escapeHTML(request.status)}</span>
+    requestsElement.innerHTML = shown.map(request => {
+        const isReceived = requestTab === "received";
+        const who = isReceived ? request.requester : "You";
+        const meta = isReceived
+            ? `${escapeHTML(request.kind)} from ${escapeHTML(request.requester)} · ${escapeHTML(request.contact)} · ${escapeHTML(timeAgo(request.createdAt))}`
+            : `Your ${escapeHTML(request.kind.toLowerCase())} · ${escapeHTML(timeAgo(request.createdAt))}`;
+
+        let footer = "";
+        if (isReceived && request.status === "Pending") {
+            footer = `
+                <div class="request-actions">
+                    <button type="button" class="btn-primary btn-sm" data-accept-id="${escapeHTML(request.id)}">Accept</button>
+                    <button type="button" class="btn-danger btn-sm" data-decline-id="${escapeHTML(request.id)}">Decline</button>
+                </div>`;
+        } else if (!isReceived && request.status === "Pending") {
+            footer = `<p class="request-meta">Waiting for the owner to respond.</p>`;
+        }
+
+        return `
+            <article class="request-card">
+                <span class="avatar">${escapeHTML(initial(who))}</span>
+                <div class="request-main">
+                    <div class="request-top">
+                        <span class="request-title">${escapeHTML(request.title)}</span>
+                        <span class="pill pill-${escapeHTML(String(request.status).toLowerCase())}">${escapeHTML(request.status)}</span>
+                    </div>
+                    <div class="request-meta">${meta}</div>
+                    <p class="request-msg">${escapeHTML(request.message)}</p>
+                    ${footer}
                 </div>
-                <div class="request-meta">
-                    ${escapeHTML(request.kind)} from ${escapeHTML(request.requester)}
-                    · ${escapeHTML(request.contact)}
-                    · ${escapeHTML(timeAgo(request.createdAt))}
-                </div>
-                <p class="request-msg">${escapeHTML(request.message)}</p>
-                ${request.status === "Pending" ? `
-                    <div class="request-actions">
-                        <button type="button" class="btn-primary btn-sm" data-accept-id="${escapeHTML(request.id)}">Accept</button>
-                        <button type="button" class="btn-danger btn-sm" data-decline-id="${escapeHTML(request.id)}">Decline</button>
-                    </div>` : ""}
-            </div>
-        </article>
-    `).join("");
+            </article>
+        `;
+    }).join("");
 }
 
 function renderAll() {
@@ -396,10 +482,15 @@ function openInquiry(listing) {
     inquiryDialog.showModal();
 }
 
-/* ---------- Forms ---------- */
+/* ---------- Database: writing ---------- */
 
-listingForm.addEventListener("submit", event => {
+listingForm.addEventListener("submit", async event => {
     event.preventDefault();
+
+    if (!db) {
+        showToast("Not connected to the database.");
+        return;
+    }
 
     const price = Number($("price").value);
 
@@ -408,87 +499,165 @@ listingForm.addEventListener("submit", event => {
         return;
     }
 
-    listings.push({
-        id: makeId(),
-        title: $("title").value.trim(),
-        description: $("description").value.trim(),
-        category: $("category").value,
-        condition: $("condition").value,
-        price,
-        seller: $("seller").value.trim() || "You",
-        image: uploadedImage || validImageUrl($("image").value.trim()),
-        type: $("exchangeType").value,
-        status: "Available",
-        createdAt: Date.now(),
-        isMine: true
-    });
+    const submitButton = listingForm.querySelector("[type=submit]");
+    submitButton.disabled = true;
+    submitButton.textContent = "Saving...";
 
-    saveData(LISTINGS_KEY, listings);
-    listingForm.reset();
-    clearImagePreview();
-    listingDialog.close();
-    currentView = "all";
-    sortElement.value = "newest";
-    renderAll();
-    showToast("Listing added!");
+    try {
+        const { data, error } = await db.from("listings").insert({
+            title: $("title").value.trim(),
+            description: $("description").value.trim(),
+            category: $("category").value,
+            condition: $("condition").value,
+            price,
+            type: $("exchangeType").value,
+            status: "Available",
+            image: uploadedImage || validImageUrl($("image").value.trim()) || null,
+            seller: $("seller").value.trim() || "Student",
+            owner_id: OWNER_ID
+        }).select().single();
+
+        if (error) throw error;
+
+        listings.unshift(fromListingRow(data));
+        writeCache();
+        listingForm.reset();
+        clearImagePreview();
+        listingDialog.close();
+        currentView = "all";
+        sortElement.value = "newest";
+        renderAll();
+        showToast("Listing added!");
+    } catch (error) {
+        console.error("Could not save listing.", error);
+        showToast("Could not save the listing. Please try again.");
+    } finally {
+        submitButton.disabled = false;
+        submitButton.textContent = "Add listing";
+    }
 });
 
-inquiryForm.addEventListener("submit", event => {
+inquiryForm.addEventListener("submit", async event => {
     event.preventDefault();
 
     const listing = listings.find(item => item.id === activeListingId);
-    if (!listing || listing.status !== "Available") {
+    if (!db || !listing || listing.status !== "Available") {
         inquiryDialog.close();
         return;
     }
 
-    requests.unshift({
-        id: makeId(),
-        listingId: listing.id,
-        title: listing.title,
-        kind: listing.type === "Exchange" ? "Exchange request" : "Inquiry",
-        requester: $("reqName").value.trim(),
-        contact: $("reqContact").value.trim(),
-        message: $("reqMessage").value.trim(),
-        status: "Pending",
-        createdAt: Date.now()
-    });
+    const alreadySent = requests.some(request =>
+        request.listingId === listing.id &&
+        request.requesterId === OWNER_ID &&
+        request.status === "Pending"
+    );
 
-    saveData(REQUESTS_KEY, requests);
-    inquiryDialog.close();
-    renderAll();
-    showToast("Request sent to the owner!");
+    if (alreadySent) {
+        inquiryDialog.close();
+        showToast("You already sent a request for this item.");
+        return;
+    }
+
+    const submitButton = inquiryForm.querySelector("[type=submit]");
+    submitButton.disabled = true;
+    submitButton.textContent = "Sending...";
+
+    try {
+        const { error } = await db.from("requests").insert({
+            listing_id: listing.id,
+            listing_title: listing.title,
+            kind: listing.type === "Exchange" ? "Exchange request" : "Inquiry",
+            requester: $("reqName").value.trim(),
+            contact: $("reqContact").value.trim(),
+            message: $("reqMessage").value.trim(),
+            status: "Pending",
+            requester_id: OWNER_ID,
+            owner_id: listing.ownerId
+        });
+
+        if (error) throw error;
+
+        inquiryDialog.close();
+        requestTab = "sent";
+        await loadAll(false);
+        showToast("Request sent to the owner!");
+    } catch (error) {
+        console.error("Could not send request.", error);
+        showToast("Could not send the request. Please try again.");
+    } finally {
+        submitButton.disabled = false;
+        submitButton.textContent = "Send";
+    }
 });
 
-/* ---------- Filters ---------- */
+async function respondToRequest(request, accept) {
+    try {
+        const { error } = await db
+            .from("requests")
+            .update({ status: accept ? "Accepted" : "Declined" })
+            .eq("id", request.id);
+
+        if (error) throw error;
+
+        if (accept) {
+            const { error: listingError } = await db
+                .from("listings")
+                .update({ status: "Reserved" })
+                .eq("id", request.listingId)
+                .eq("status", "Available");
+
+            if (listingError) throw listingError;
+        }
+
+        await loadAll(false);
+        showToast(accept ? "Request accepted. Item reserved." : "Request declined");
+    } catch (error) {
+        console.error("Could not update request.", error);
+        showToast("Could not update the request. Please try again.");
+    }
+}
+
+/* ---------- Events ---------- */
 
 searchElement.addEventListener("input", renderListings);
 categoryElement.addEventListener("change", renderListings);
 sortElement.addEventListener("change", renderListings);
 
-document.querySelectorAll(".tab").forEach(tab => {
+document.querySelectorAll(".tab[data-view]").forEach(tab => {
     tab.addEventListener("click", () => {
         currentView = tab.dataset.view;
         renderListings();
     });
 });
 
-/* ---------- Listing actions ---------- */
+requestTabElements.forEach(tab => {
+    tab.addEventListener("click", () => {
+        requestTab = tab.dataset.rtab;
+        renderRequests();
+    });
+});
 
-listingsElement.addEventListener("change", event => {
+listingsElement.addEventListener("change", async event => {
     const listingId = event.target.dataset.statusId;
-    if (!listingId) return;
+    if (!listingId || !db) return;
 
     const listing = listings.find(item => item.id === listingId);
     if (!listing || !listing.isMine) return;
 
-    listing.status = event.target.value;
-    saveData(LISTINGS_KEY, listings);
-    renderAll();
-    showToast(`Marked as ${listing.status}`);
+    const newStatus = event.target.value;
+    const { error } = await db.from("listings").update({ status: newStatus }).eq("id", listingId);
+
+    if (error) {
+        console.error("Could not update status.", error);
+        showToast("Could not update the status.");
+    } else {
+        showToast(`Marked as ${newStatus}`);
+    }
+
+    await loadAll(false);
 });
 
-listingsElement.addEventListener("click", event => {
+listingsElement.addEventListener("click", async event => {
     const requestButton = event.target.closest("[data-request-id]");
     if (requestButton) {
         const listing = listings.find(item => item.id === requestButton.dataset.requestId);
@@ -497,49 +666,56 @@ listingsElement.addEventListener("click", event => {
     }
 
     const deleteButton = event.target.closest("[data-delete-id]");
-    if (deleteButton) {
+    if (deleteButton && db) {
         const listing = listings.find(item => item.id === deleteButton.dataset.deleteId);
         if (!listing || !listing.isMine) return;
         if (!confirm(`Delete "${listing.title}"?`)) return;
 
-        listings = listings.filter(item => item.id !== listing.id);
-        requests = requests.filter(request => request.listingId !== listing.id);
-        saveData(LISTINGS_KEY, listings);
-        saveData(REQUESTS_KEY, requests);
-        renderAll();
-        showToast("Listing deleted");
+        const { error } = await db.from("listings").delete().eq("id", listing.id);
+
+        if (error) {
+            console.error("Could not delete listing.", error);
+            showToast("Could not delete the listing.");
+        } else {
+            showToast("Listing deleted");
+        }
+
+        await loadAll(false);
     }
 });
-
-/* ---------- Request actions ---------- */
 
 requestsElement.addEventListener("click", event => {
     const acceptButton = event.target.closest("[data-accept-id]");
     const declineButton = event.target.closest("[data-decline-id]");
     const requestId = acceptButton?.dataset.acceptId || declineButton?.dataset.declineId;
-    if (!requestId) return;
+    if (!requestId || !db) return;
 
     const request = requests.find(item => item.id === requestId);
-    if (!request || request.status !== "Pending") return;
+    if (!request || request.ownerId !== OWNER_ID || request.status !== "Pending") return;
 
-    if (acceptButton) {
-        request.status = "Accepted";
-        const listing = listings.find(item => item.id === request.listingId);
-        if (listing && listing.status === "Available") {
-            listing.status = "Reserved";
-            saveData(LISTINGS_KEY, listings);
-        }
-        showToast("Request accepted. Item reserved.");
-    } else {
-        request.status = "Declined";
-        showToast("Request declined");
-    }
-
-    saveData(REQUESTS_KEY, requests);
-    renderAll();
+    respondToRequest(request, Boolean(acceptButton));
 });
 
-/* ---------- Start ---------- */
+/* ---------- Start and auto-refresh ---------- */
 
-seedSampleData();
+readCache();
 renderAll();
+
+if (listings.length === 0) {
+    listingsElement.innerHTML = `<div class="empty"><strong>Loading listings...</strong></div>`;
+}
+
+loadAll(true);
+
+setInterval(() => {
+    const busy =
+        document.visibilityState !== "visible" ||
+        listingDialog.open ||
+        inquiryDialog.open ||
+        document.activeElement?.tagName === "SELECT";
+    if (!busy) loadAll(false);
+}, REFRESH_MS);
+
+document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "visible") loadAll(false);
+});
