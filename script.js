@@ -123,7 +123,8 @@ function renderListings() {
             : `<p class="status">Status: ${escapeHTML(item.status)}</p>`;
 
         const actionHTML = item.isMine
-            ? "<p>Your listing</p>"
+                        ? `<p>Your listing</p>
+               <button type="button" class="danger" data-delete-id="${escapeHTML(item.id)}">Delete</button>`
             : item.status === "Available"
                 ? `<button type="button" data-request-id="${escapeHTML(item.id)}">
                     ${item.type === "Exchange" ? "Request Exchange" : "Inquire"}
@@ -163,7 +164,11 @@ function renderRequests() {
             <p>From: ${escapeHTML(request.requester)}</p>
             <p>Contact: ${escapeHTML(request.contact)}</p>
             <p>Message: ${escapeHTML(request.message)}</p>
-            <p>Status: ${escapeHTML(request.status)}</p>
+                        <p>Status: <strong>${escapeHTML(request.status)}</strong></p>
+            ${request.status === "Pending" ? `
+                <button type="button" data-accept-id="${escapeHTML(request.id)}">Accept</button>
+                <button type="button" class="danger" data-decline-id="${escapeHTML(request.id)}">Decline</button>
+            ` : ""}
             <p>${escapeHTML(new Date(request.createdAt).toLocaleString())}</p>
         </article>
     `).join("");
@@ -290,6 +295,46 @@ listingsElement.addEventListener("click", event => {
     alert("Your request was saved in this browser.");
 });
 
+listingsElement.addEventListener("click", event => {
+    const button = event.target.closest("[data-delete-id]");
+    if (!button) return;
+
+    const listing = listings.find(item => item.id === button.dataset.deleteId);
+    if (!listing || !listing.isMine) return;
+    if (!confirm(`Delete "${listing.title}"?`)) return;
+
+    listings = listings.filter(item => item.id !== listing.id);
+    requests = requests.filter(request => request.listingId !== listing.id);
+    saveData(LISTINGS_KEY, listings);
+    saveData(REQUESTS_KEY, requests);
+    renderListings();
+    renderRequests();
+});
+
+requestsElement.addEventListener("click", event => {
+    const acceptButton = event.target.closest("[data-accept-id]");
+    const declineButton = event.target.closest("[data-decline-id]");
+    const requestId = acceptButton?.dataset.acceptId || declineButton?.dataset.declineId;
+    if (!requestId) return;
+
+    const request = requests.find(item => item.id === requestId);
+    if (!request || request.status !== "Pending") return;
+
+    if (acceptButton) {
+        request.status = "Accepted";
+        const listing = listings.find(item => item.id === request.listingId);
+        if (listing && listing.status === "Available") {
+            listing.status = "Reserved";
+            saveData(LISTINGS_KEY, listings);
+            renderListings();
+        }
+    } else {
+        request.status = "Declined";
+    }
+
+    saveData(REQUESTS_KEY, requests);
+    renderRequests();
+});
 window.showAll = function () {
     currentView = "all";
     renderListings();
