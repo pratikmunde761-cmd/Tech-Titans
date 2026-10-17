@@ -2,6 +2,7 @@
 
 const LISTINGS_KEY = "campusExchangeListings";
 const REQUESTS_KEY = "campusExchangeRequests";
+const SEEDED_KEY = "campusExchangeSeeded";
 
 const form = document.getElementById("listingForm");
 const listingsElement = document.getElementById("listings");
@@ -9,8 +10,15 @@ const requestsElement = document.getElementById("requests");
 const searchElement = document.getElementById("search");
 const categoryElement = document.getElementById("filterCategory");
 const sortElement = document.getElementById("sort");
+const imageFileElement = document.getElementById("imageFile");
+const imagePreviewElement = document.getElementById("imagePreview");
+const inquiryDialog = document.getElementById("inquiryDialog");
+const inquiryForm = document.getElementById("inquiryForm");
+const inquiryTitle = document.getElementById("inquiryTitle");
 
 let currentView = "all";
+let uploadedImage = "";
+let activeListingId = null;
 let listings = loadData(LISTINGS_KEY);
 let requests = loadData(REQUESTS_KEY);
 
@@ -29,7 +37,7 @@ function saveData(key, data) {
     try {
         localStorage.setItem(key, JSON.stringify(data));
     } catch (error) {
-        alert("Your browser could not save this data.");
+        alert("Your browser could not save this data. Try a smaller photo.");
         console.error(`Could not save ${key}.`, error);
     }
 }
@@ -56,7 +64,7 @@ function formatPrice(price) {
 
 function validImageUrl(value) {
     if (!value) return "";
-        if (value.startsWith("data:image/")) return value;
+    if (value.startsWith("data:image/")) return value;
 
     try {
         const url = new URL(value);
@@ -66,7 +74,51 @@ function validImageUrl(value) {
     }
 }
 
+function showToast(message) {
+    const toast = document.createElement("div");
+    toast.className = "toast";
+    toast.textContent = message;
+    document.body.appendChild(toast);
+    setTimeout(() => toast.remove(), 2500);
+}
+
+function seedSampleData() {
+    try {
+        if (localStorage.getItem(SEEDED_KEY)) return;
+    } catch {
+        return;
+    }
+
+    const now = Date.now();
+    const samples = [
+        { title: "Engineering Mathematics Textbook", description: "Clean copy, no highlighting. Covers the Sem I syllabus.", category: "Books", condition: "Good", price: 150, type: "Sell" },
+        { title: "Casio fx-991ES Plus Calculator", description: "Works perfectly, comes with cover.", category: "Electronics", condition: "Like New", price: 400, type: "Sell" },
+        { title: "Lab Coat (Size M)", description: "Used for one semester, washed.", category: "Lab Supplies", condition: "Good", price: 0, type: "Donate" },
+        { title: "Drafter + Geometry Box", description: "Complete set. Want to swap for a scientific calculator.", category: "Stationery", condition: "Acceptable", price: 0, type: "Exchange" }
+    ].map((item, index) => ({
+        ...item,
+        id: makeId(),
+        image: "",
+        status: index === 2 ? "Reserved" : "Available",
+        createdAt: now - index * 3600000,
+        isMine: false
+    }));
+
+    listings.push(...samples);
+    saveData(LISTINGS_KEY, listings);
+
+    try {
+        localStorage.setItem(SEEDED_KEY, "1");
+    } catch {
+        // Ignore: samples simply may show again next time.
+    }
+}
+
 function renderListings() {
+    document.querySelectorAll("nav button").forEach(button => {
+        button.classList.toggle("active", button.dataset.view === currentView);
+    });
+
     const searchText = searchElement.value.trim().toLowerCase();
     const selectedCategory = categoryElement.value;
 
@@ -110,6 +162,8 @@ function renderListings() {
             ? `<img src="${escapeHTML(image)}" alt="${escapeHTML(item.title)}">`
             : "";
 
+        const badgeHTML = `<span class="badge badge-${escapeHTML(String(item.status).toLowerCase())}">${escapeHTML(item.status)}</span>`;
+
         const statusHTML = item.isMine
             ? `
                 <label>
@@ -120,10 +174,10 @@ function renderListings() {
                         ).join("")}
                     </select>
                 </label>`
-            : `<p class="status">Status: ${escapeHTML(item.status)}</p>`;
+            : "";
 
         const actionHTML = item.isMine
-                        ? `<p>Your listing</p>
+            ? `<p>Your listing</p>
                <button type="button" class="danger" data-delete-id="${escapeHTML(item.id)}">Delete</button>`
             : item.status === "Available"
                 ? `<button type="button" data-request-id="${escapeHTML(item.id)}">
@@ -134,6 +188,7 @@ function renderListings() {
         return `
             <article class="card">
                 ${imageHTML}
+                ${badgeHTML}
                 <h3>${escapeHTML(item.title)}</h3>
                 <p>${escapeHTML(item.description)}</p>
                 <p><strong>Category:</strong> ${escapeHTML(item.category)}</p>
@@ -164,7 +219,7 @@ function renderRequests() {
             <p>From: ${escapeHTML(request.requester)}</p>
             <p>Contact: ${escapeHTML(request.contact)}</p>
             <p>Message: ${escapeHTML(request.message)}</p>
-                        <p>Status: <strong>${escapeHTML(request.status)}</strong></p>
+            <p>Status: <strong>${escapeHTML(request.status)}</strong></p>
             ${request.status === "Pending" ? `
                 <button type="button" data-accept-id="${escapeHTML(request.id)}">Accept</button>
                 <button type="button" class="danger" data-decline-id="${escapeHTML(request.id)}">Decline</button>
@@ -174,14 +229,18 @@ function renderRequests() {
     `).join("");
 }
 
-let uploadedImage = "";
-const imageFileElement = document.getElementById("imageFile");
-const imagePreviewElement = document.getElementById("imagePreview");
-
 function clearImagePreview() {
     uploadedImage = "";
     imagePreviewElement.style.display = "none";
     imagePreviewElement.removeAttribute("src");
+}
+
+function openInquiry(listing) {
+    activeListingId = listing.id;
+    inquiryTitle.textContent =
+        listing.type === "Exchange" ? "Request Exchange" : "Send Inquiry";
+    inquiryForm.reset();
+    inquiryDialog.showModal();
 }
 
 imageFileElement.addEventListener("change", () => {
@@ -216,6 +275,7 @@ imageFileElement.addEventListener("change", () => {
     };
     reader.readAsDataURL(file);
 });
+
 form.addEventListener("submit", event => {
     event.preventDefault();
 
@@ -241,9 +301,42 @@ form.addEventListener("submit", event => {
     });
 
     saveData(LISTINGS_KEY, listings);
-    form.reset();    clearImagePreview();
+    form.reset();
+    clearImagePreview();
     currentView = "all";
     renderListings();
+    showToast("Listing added!");
+});
+
+inquiryForm.addEventListener("submit", event => {
+    event.preventDefault();
+
+    const listing = listings.find(item => item.id === activeListingId);
+    if (!listing || listing.status !== "Available") {
+        inquiryDialog.close();
+        return;
+    }
+
+    requests.unshift({
+        id: makeId(),
+        listingId: listing.id,
+        title: listing.title,
+        kind: listing.type === "Exchange" ? "Exchange request" : "Inquiry",
+        requester: document.getElementById("reqName").value.trim(),
+        contact: document.getElementById("reqContact").value.trim(),
+        message: document.getElementById("reqMessage").value.trim(),
+        status: "Pending",
+        createdAt: Date.now()
+    });
+
+    saveData(REQUESTS_KEY, requests);
+    renderRequests();
+    inquiryDialog.close();
+    showToast("Request sent to the owner!");
+});
+
+document.getElementById("inquiryCancel").addEventListener("click", () => {
+    inquiryDialog.close();
 });
 
 searchElement.addEventListener("input", renderListings);
@@ -263,52 +356,26 @@ listingsElement.addEventListener("change", event => {
 });
 
 listingsElement.addEventListener("click", event => {
-    const button = event.target.closest("[data-request-id]");
-    if (!button) return;
+    const requestButton = event.target.closest("[data-request-id]");
+    if (requestButton) {
+        const listing = listings.find(item => item.id === requestButton.dataset.requestId);
+        if (listing && listing.status === "Available") openInquiry(listing);
+        return;
+    }
 
-    const listing = listings.find(item => item.id === button.dataset.requestId);
-    if (!listing || listing.status !== "Available") return;
+    const deleteButton = event.target.closest("[data-delete-id]");
+    if (deleteButton) {
+        const listing = listings.find(item => item.id === deleteButton.dataset.deleteId);
+        if (!listing || !listing.isMine) return;
+        if (!confirm(`Delete "${listing.title}"?`)) return;
 
-    const requester = prompt("Your name:");
-    if (!requester || !requester.trim()) return;
-
-    const contact = prompt("Your email or phone number:");
-    if (!contact || !contact.trim()) return;
-
-    const message = prompt("Write a short message to the item owner:");
-    if (!message || !message.trim()) return;
-
-    requests.unshift({
-        id: makeId(),
-        listingId: listing.id,
-        title: listing.title,
-        kind: listing.type === "Exchange" ? "Exchange request" : "Inquiry",
-        requester: requester.trim(),
-        contact: contact.trim(),
-        message: message.trim(),
-        status: "Pending",
-        createdAt: Date.now()
-    });
-
-    saveData(REQUESTS_KEY, requests);
-    renderRequests();
-    alert("Your request was saved in this browser.");
-});
-
-listingsElement.addEventListener("click", event => {
-    const button = event.target.closest("[data-delete-id]");
-    if (!button) return;
-
-    const listing = listings.find(item => item.id === button.dataset.deleteId);
-    if (!listing || !listing.isMine) return;
-    if (!confirm(`Delete "${listing.title}"?`)) return;
-
-    listings = listings.filter(item => item.id !== listing.id);
-    requests = requests.filter(request => request.listingId !== listing.id);
-    saveData(LISTINGS_KEY, listings);
-    saveData(REQUESTS_KEY, requests);
-    renderListings();
-    renderRequests();
+        listings = listings.filter(item => item.id !== listing.id);
+        requests = requests.filter(request => request.listingId !== listing.id);
+        saveData(LISTINGS_KEY, listings);
+        saveData(REQUESTS_KEY, requests);
+        renderListings();
+        renderRequests();
+    }
 });
 
 requestsElement.addEventListener("click", event => {
@@ -335,6 +402,7 @@ requestsElement.addEventListener("click", event => {
     saveData(REQUESTS_KEY, requests);
     renderRequests();
 });
+
 window.showAll = function () {
     currentView = "all";
     renderListings();
@@ -349,30 +417,6 @@ window.showMyListings = function () {
     currentView = "mine";
     renderListings();
 };
-function seedSampleData() {
-    try {
-        if (localStorage.getItem("campusExchangeSeeded")) return;
-    } catch { return; }
-
-    const now = Date.now();
-    const samples = [
-        { title: "Engineering Mathematics Textbook", description: "Clean copy, no highlighting. Covers the Sem I syllabus.", category: "Books", condition: "Good", price: 150, type: "Sell" },
-        { title: "Casio fx-991ES Plus Calculator", description: "Works perfectly, comes with cover.", category: "Electronics", condition: "Like New", price: 400, type: "Sell" },
-        { title: "Lab Coat (Size M)", description: "Used for one semester, washed.", category: "Lab Supplies", condition: "Good", price: 0, type: "Donate" },
-        { title: "Drafter + Geometry Box", description: "Complete set. Want to swap for a scientific calculator.", category: "Stationery", condition: "Acceptable", price: 0, type: "Exchange" }
-    ].map((item, i) => ({
-        ...item,
-        id: makeId(),
-        image: "",
-        status: i === 2 ? "Reserved" : "Available",
-        createdAt: now - i * 3600000,
-        isMine: false
-    }));
-
-    listings.push(...samples);
-    saveData(LISTINGS_KEY, listings);
-    try { localStorage.setItem("campusExchangeSeeded", "1"); } catch {}
-}
 
 seedSampleData();
 renderListings();
