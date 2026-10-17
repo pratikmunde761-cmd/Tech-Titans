@@ -1,40 +1,37 @@
 "use strict";
 
-const STORAGE_KEY = "campusExchangeListings";
+const LISTINGS_KEY = "campusExchangeListings";
 const REQUESTS_KEY = "campusExchangeRequests";
 
-const listingForm = document.getElementById("listingForm");
-const listingsContainer = document.getElementById("listings");
-const requestsContainer = document.getElementById("requests");
-const searchInput = document.getElementById("search");
-const categoryFilter = document.getElementById("filterCategory");
-const sortSelect = document.getElementById("sort");
+const form = document.getElementById("listingForm");
+const listingsElement = document.getElementById("listings");
+const requestsElement = document.getElementById("requests");
+const searchElement = document.getElementById("search");
+const categoryElement = document.getElementById("filterCategory");
+const sortElement = document.getElementById("sort");
 
 let currentView = "all";
-let listings = loadFromStorage(STORAGE_KEY, []);
-let requests = loadFromStorage(REQUESTS_KEY, []);
+let listings = loadData(LISTINGS_KEY);
+let requests = loadData(REQUESTS_KEY);
 
-function loadFromStorage(key, fallback) {
+function loadData(key) {
     try {
         const saved = localStorage.getItem(key);
-        return saved ? JSON.parse(saved) : fallback;
+        const data = saved ? JSON.parse(saved) : [];
+        return Array.isArray(data) ? data : [];
     } catch (error) {
-        console.error(`Could not load ${key} from browser storage.`, error);
-        return fallback;
+        console.error(`Could not read ${key}.`, error);
+        return [];
     }
 }
 
-function saveToStorage(key, value) {
+function saveData(key, data) {
     try {
-        localStorage.setItem(key, JSON.stringify(value));
+        localStorage.setItem(key, JSON.stringify(data));
     } catch (error) {
-        alert("The browser could not save this data. Try removing some stored data or using a different browser.");
-        console.error(`Could not save ${key} to browser storage.`, error);
+        alert("Your browser could not save this data.");
+        console.error(`Could not save ${key}.`, error);
     }
-}
-
-function makeId() {
-    return `${Date.now()}-${Math.random().toString(16).slice(2)}`;
 }
 
 function escapeHTML(value) {
@@ -47,188 +44,223 @@ function escapeHTML(value) {
     })[character]);
 }
 
+function makeId() {
+    return `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+}
+
 function formatPrice(price) {
     return Number(price) === 0
         ? "Free"
         : `₹${Number(price).toLocaleString("en-IN")}`;
 }
 
-function renderListings() {
-    const searchTerm = searchInput.value.trim().toLowerCase();
-    const selectedCategory = categoryFilter.value;
+function validImageUrl(value) {
+    if (!value) return "";
 
-    let visibleListings = listings.filter(listing => {
+    try {
+        const url = new URL(value);
+        return ["http:", "https:"].includes(url.protocol) ? url.href : "";
+    } catch {
+        return "";
+    }
+}
+
+function renderListings() {
+    const searchText = searchElement.value.trim().toLowerCase();
+    const selectedCategory = categoryElement.value;
+
+    let shownListings = listings.filter(item => {
         const matchesSearch = [
-            listing.title,
-            listing.description,
-            listing.category,
-            listing.condition
-        ].some(value => String(value).toLowerCase().includes(searchTerm));
+            item.title,
+            item.description,
+            item.category,
+            item.condition
+        ].some(value => String(value).toLowerCase().includes(searchText));
 
         const matchesCategory =
-            !selectedCategory || listing.category === selectedCategory;
+            !selectedCategory || item.category === selectedCategory;
 
         const matchesView =
-            currentView !== "available" || listing.status === "Available";
+            currentView !== "available" || item.status === "Available";
 
-        return matchesSearch && matchesCategory && matchesView;
+        const matchesOwner =
+            currentView !== "mine" || item.isMine;
+
+        return matchesSearch && matchesCategory && matchesView && matchesOwner;
     });
 
-    if (sortSelect.value === "low") {
-        visibleListings.sort((a, b) => Number(a.price) - Number(b.price));
-    } else if (sortSelect.value === "high") {
-        visibleListings.sort((a, b) => Number(b.price) - Number(a.price));
+    if (sortElement.value === "low") {
+        shownListings.sort((a, b) => Number(a.price) - Number(b.price));
+    } else if (sortElement.value === "high") {
+        shownListings.sort((a, b) => Number(b.price) - Number(a.price));
     } else {
-        visibleListings.sort((a, b) => b.createdAt - a.createdAt);
+        shownListings.sort((a, b) => b.createdAt - a.createdAt);
     }
 
-    if (currentView === "mine") {
-        visibleListings = visibleListings.filter(listing => listing.isMine);
-    }
-
-    if (visibleListings.length === 0) {
-        listingsContainer.innerHTML =
-            `<p class="empty-message">No listings found. Try changing your search or add a listing.</p>`;
+    if (shownListings.length === 0) {
+        listingsElement.innerHTML =
+            "<p>No listings found. Try another search or add an item.</p>";
         return;
     }
 
-    listingsContainer.innerHTML = visibleListings.map(listing => {
-        const imageMarkup = listing.image
-            ? `<img src="${escapeHTML(listing.image)}" alt="${escapeHTML(listing.title)}" onerror="this.style.display='none'">`
+    listingsElement.innerHTML = shownListings.map(item => {
+        const image = validImageUrl(item.image);
+        const imageHTML = image
+            ? `<img src="${escapeHTML(image)}" alt="${escapeHTML(item.title)}">`
             : "";
 
-        const statusOptions = ["Available", "Reserved", "Completed"]
-            .map(status =>
-                `<option value="${status}" ${listing.status === status ? "selected" : ""}>${status}</option>`
-            ).join("");
+        const statusHTML = item.isMine
+            ? `
+                <label>
+                    Update status:
+                    <select data-status-id="${escapeHTML(item.id)}">
+                        ${["Available", "Reserved", "Completed"].map(status =>
+                            `<option value="${status}" ${item.status === status ? "selected" : ""}>${status}</option>`
+                        ).join("")}
+                    </select>
+                </label>`
+            : `<p class="status">Status: ${escapeHTML(item.status)}</p>`;
+
+        const actionHTML = item.isMine
+            ? "<p>Your listing</p>"
+            : item.status === "Available"
+                ? `<button type="button" data-request-id="${escapeHTML(item.id)}">
+                    ${item.type === "Exchange" ? "Request Exchange" : "Inquire"}
+                   </button>`
+                : "<p>This item is not currently available.</p>";
 
         return `
             <article class="card">
-                ${imageMarkup}
-                <h3>${escapeHTML(listing.title)}</h3>
-                <p>${escapeHTML(listing.description)}</p>
-                <p><strong>Category:</strong> ${escapeHTML(listing.category)}</p>
-                <p><strong>Condition:</strong> ${escapeHTML(listing.condition)}</p>
-                <p><strong>Type:</strong> ${escapeHTML(listing.type)}</p>
-                <p><strong>Price:</strong> ${formatPrice(listing.price)}</p>
-                <p class="status">Status: ${escapeHTML(listing.status)}</p>
-                <label>
-                    Update status:
-                    <select data-status-id="${escapeHTML(listing.id)}">
-                        ${statusOptions}
-                    </select>
-                </label>
-                <button type="button" data-request-id="${escapeHTML(listing.id)}">
-                    ${listing.type === "Exchange" ? "Request Exchange" : "Inquire"}
-                </button>
+                ${imageHTML}
+                <h3>${escapeHTML(item.title)}</h3>
+                <p>${escapeHTML(item.description)}</p>
+                <p><strong>Category:</strong> ${escapeHTML(item.category)}</p>
+                <p><strong>Condition:</strong> ${escapeHTML(item.condition)}</p>
+                <p><strong>Listing type:</strong> ${escapeHTML(item.type)}</p>
+                <p><strong>Price:</strong> ${formatPrice(item.price)}</p>
+                ${statusHTML}
+                ${actionHTML}
             </article>
         `;
     }).join("");
+
+    listingsElement.querySelectorAll("img").forEach(image => {
+        image.addEventListener("error", () => image.remove(), { once: true });
+    });
 }
 
 function renderRequests() {
     if (requests.length === 0) {
-        requestsContainer.innerHTML = "<p>No inquiries or exchange requests yet.</p>";
+        requestsElement.innerHTML = "<p>No inquiries or exchange requests yet.</p>";
         return;
     }
 
-    requestsContainer.innerHTML = requests.map(request => `
+    requestsElement.innerHTML = requests.map(request => `
         <article class="request-card">
             <strong>${escapeHTML(request.kind)}:</strong>
             ${escapeHTML(request.title)}
-            <span> — ${escapeHTML(request.createdAt)}</span>
+            <p>From: ${escapeHTML(request.requester)}</p>
+            <p>Contact: ${escapeHTML(request.contact)}</p>
+            <p>Message: ${escapeHTML(request.message)}</p>
+            <p>Status: ${escapeHTML(request.status)}</p>
+            <p>${escapeHTML(new Date(request.createdAt).toLocaleString())}</p>
         </article>
     `).join("");
 }
 
-listingForm.addEventListener("submit", event => {
+form.addEventListener("submit", event => {
     event.preventDefault();
 
-    const title = document.getElementById("title").value.trim();
-    const description = document.getElementById("description").value.trim();
-    const category = document.getElementById("category").value;
-    const condition = document.getElementById("condition").value;
     const price = Number(document.getElementById("price").value);
-    const image = document.getElementById("image").value.trim();
-    const type = document.getElementById("exchangeType").value;
 
-    if (!title || !description || !category || !condition || !type || price < 0) {
-        alert("Please complete all required fields with a valid price.");
+    if (!Number.isFinite(price) || price < 0) {
+        alert("Enter a valid price of 0 or more.");
         return;
     }
 
     listings.push({
         id: makeId(),
-        title,
-        description,
-        category,
-        condition,
+        title: document.getElementById("title").value.trim(),
+        description: document.getElementById("description").value.trim(),
+        category: document.getElementById("category").value,
+        condition: document.getElementById("condition").value,
         price,
-        image,
-        type,
+        image: validImageUrl(document.getElementById("image").value.trim()),
+        type: document.getElementById("exchangeType").value,
         status: "Available",
         createdAt: Date.now(),
         isMine: true
     });
 
-    saveToStorage(STORAGE_KEY, listings);
-    listingForm.reset();
+    saveData(LISTINGS_KEY, listings);
+    form.reset();
     currentView = "all";
     renderListings();
 });
 
-searchInput.addEventListener("input", renderListings);
-categoryFilter.addEventListener("change", renderListings);
-sortSelect.addEventListener("change", renderListings);
+searchElement.addEventListener("input", renderListings);
+categoryElement.addEventListener("change", renderListings);
+sortElement.addEventListener("change", renderListings);
 
-listingsContainer.addEventListener("change", event => {
+listingsElement.addEventListener("change", event => {
     const listingId = event.target.dataset.statusId;
     if (!listingId) return;
 
     const listing = listings.find(item => item.id === listingId);
-    if (!listing) return;
+    if (!listing || !listing.isMine) return;
 
     listing.status = event.target.value;
-    saveToStorage(STORAGE_KEY, listings);
+    saveData(LISTINGS_KEY, listings);
     renderListings();
 });
 
-listingsContainer.addEventListener("click", event => {
-    const listingId = event.target.dataset.requestId;
-    if (!listingId) return;
+listingsElement.addEventListener("click", event => {
+    const button = event.target.closest("[data-request-id]");
+    if (!button) return;
 
-    const listing = listings.find(item => item.id === listingId);
-    if (!listing) return;
+    const listing = listings.find(item => item.id === button.dataset.requestId);
+    if (!listing || listing.status !== "Available") return;
 
-    const kind = listing.type === "Exchange" ? "Exchange request" : "Inquiry";
+    const requester = prompt("Your name:");
+    if (!requester || !requester.trim()) return;
+
+    const contact = prompt("Your email or phone number:");
+    if (!contact || !contact.trim()) return;
+
+    const message = prompt("Write a short message to the item owner:");
+    if (!message || !message.trim()) return;
 
     requests.unshift({
         id: makeId(),
         listingId: listing.id,
         title: listing.title,
-        kind,
-        createdAt: new Date().toLocaleString()
+        kind: listing.type === "Exchange" ? "Exchange request" : "Inquiry",
+        requester: requester.trim(),
+        contact: contact.trim(),
+        message: message.trim(),
+        status: "Pending",
+        createdAt: Date.now()
     });
 
-    saveToStorage(REQUESTS_KEY, requests);
+    saveData(REQUESTS_KEY, requests);
     renderRequests();
-    alert(`${kind} saved for "${listing.title}".`);
+    alert("Your request was saved in this browser.");
 });
 
-function showAll() {
+window.showAll = function () {
     currentView = "all";
     renderListings();
-}
+};
 
-function showAvailable() {
+window.showAvailable = function () {
     currentView = "available";
     renderListings();
-}
+};
 
-function showMyListings() {
+window.showMyListings = function () {
     currentView = "mine";
     renderListings();
-}
+};
 
 renderListings();
 renderRequests();
