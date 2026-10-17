@@ -39,9 +39,9 @@ HTML, CSS, JavaScript (no framework), Supabase (PostgreSQL database), Vercel (ho
 **Quick test (1 minute):** add a listing, then open the site in an incognito window (a second student), send an inquiry, go back to the first window and accept it from Requests → Received. The item turns Reserved.
 
 ## Team
-- Member 1 name
-- Member 2 name
-- Member 3 name
+1.Pratik Munde
+2.Ankush Chaudhari
+3.Nikhil Sonawane
 
 ## Notes
 This is a hackathon demo. There is no password login, and "my listings" is tied to the browser. Database rules are open for demo purposes. Photos are compressed and stored with the listing.
