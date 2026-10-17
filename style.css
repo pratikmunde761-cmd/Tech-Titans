@@ -446,3 +446,6 @@ footer {
     .price { font-size: 1.05rem; }
     .brand span:last-child { font-size: 1rem; }
 }
+.topbar-actions { display: flex; align-items: center; gap: 10px; }
+.pill-live { background: var(--primary-soft); color: var(--primary-dark); }
+.pill-error { background: #fde8e1; color: var(--danger); }
