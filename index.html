@@ -1,1 +1,103 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Campus Exchange Marketplace</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
 
+<header>
+    <h1>Campus Exchange ♻️</h1>
+    <p>Reuse More. Waste Less.</p>
+</header>
+
+<nav>
+    <button onclick="showAll()">All Items</button>
+    <button onclick="showAvailable()">Available</button>
+    <button onclick="showMyListings()">My Listings</button>
+</nav>
+
+<main>
+    <section class="form-section">
+        <h2>Add New Listing</h2>
+
+        <form id="listingForm">
+            <input id="title" placeholder="Item name" required>
+
+            <textarea id="description"
+                placeholder="Item description" required></textarea>
+
+            <select id="category" required>
+                <option value="">Select Category</option>
+                <option>Books</option>
+                <option>Electronics</option>
+                <option>Lab Supplies</option>
+                <option>Stationery</option>
+                <option>Other</option>
+            </select>
+
+            <select id="condition" required>
+                <option value="">Select Condition</option>
+                <option>Like New</option>
+                <option>Good</option>
+                <option>Acceptable</option>
+            </select>
+
+            <input id="price" type="number"
+                min="0" placeholder="Price in ₹ (0 = free)" required>
+
+            <input id="image" type="url"
+                placeholder="Image URL (optional)">
+
+            <select id="exchangeType" required>
+                <option value="">Select Listing Type</option>
+                <option>Sell</option>
+                <option>Donate</option>
+                <option>Exchange</option>
+            </select>
+
+            <button type="submit">Add Listing</button>
+        </form>
+    </section>
+
+    <section class="market-section">
+        <h2>Explore Marketplace</h2>
+
+        <input id="search" placeholder="Search items...">
+
+        <div class="filters">
+            <select id="filterCategory">
+                <option value="">All Categories</option>
+                <option>Books</option>
+                <option>Electronics</option>
+                <option>Lab Supplies</option>
+                <option>Stationery</option>
+                <option>Other</option>
+            </select>
+
+            <select id="sort">
+                <option value="newest">Newest First</option>
+                <option value="low">Price: Low to High</option>
+                <option value="high">Price: High to Low</option>
+            </select>
+        </div>
+
+        <div id="listings" class="listings"></div>
+    </section>
+
+    <section class="requests-section">
+        <h2>Exchange Requests</h2>
+        <div id="requests"></div>
+    </section>
+</main>
+
+<footer>
+    <p>Campus Exchange & Reuse Marketplace</p>
+    <p>Give Items a Second Life 🌱</p>
+</footer>
+
+<script src="script.js"></script>
+</body>
+</html>
