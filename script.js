@@ -1,8 +1,8 @@
 "use strict";
 
 /* ===== PASTE YOUR SUPABASE DETAILS BETWEEN THE QUOTES ===== */
-const SUPABASE_URL = "https://jjfkurwjsalirejtjzhz.supabase.co/rest/v1/";
-const SUPABASE_KEY = "sb_publishable_fu_5GsNFKg64bisaYSE_HQ_i7tlpIy6";
+const SUPABASE_URL = "https://qdngjrzrxpcorqhfhalf.supabase.co/rest/v1/";
+const SUPABASE_KEY = "sb_publishable_h1CKpfjU7NLkk9wNcYlQfQ_43Ys7iy-";
 /* ========================================================== */
 
 const OWNER_KEY = "campusExchangeOwnerId";
