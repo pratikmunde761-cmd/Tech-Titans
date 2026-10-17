@@ -27,9 +27,10 @@ Open `index.html` in a browser, or visit the live link below.
 Note: data is saved per browser (localStorage).
 
 ## Team
-- [Name 1]
-- [Name 2]
-
+1- Pratik Munde
+2- Nikhil Sonwane
+3- Ankush Chaudhari
+4- Bhavishya Bodkhe
 ## Live Link
 https://YOUR-PRODUCTION-URL.vercel.app
 
